@@ -1,0 +1,46 @@
+# Production-like stack: docker compose -f docker-compose.prod.yml up --build
+# Set APP_SECRET (and SMTP_*, OAuth vars…) in a root .env file or your environment.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kit}
+      POSTGRES_DB: ${POSTGRES_DB:-kit}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-kit}']
+      interval: 5s
+      retries: 10
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    env_file:
+      - path: apps/api/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-kit}:${POSTGRES_PASSWORD:-kit}@postgres:5432/${POSTGRES_DB:-kit}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET (32+ random chars)}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+    # Not published: only reachable by the web container.
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_URL: http://api:4000
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - '3000:3000'
+
+volumes:
+  pgdata_prod:

@@ -1,0 +1,34 @@
+{
+  "name": "social-auth",
+  "title": "Social Login (Passport)",
+  "description": "Sign in with Google & GitHub via Passport.js, with account linking",
+  "version": "1.0.0",
+  "requires": [],
+  "migration": true,
+  "dependencies": {
+    "api": {
+      "passport": "^0.7.0",
+      "passport-github2": "^0.1.12",
+      "passport-google-oauth20": "^2.0.0"
+    }
+  },
+  "devDependencies": {
+    "api": {
+      "@types/passport": "^1.0.17",
+      "@types/passport-github2": "^1.2.9",
+      "@types/passport-google-oauth20": "^2.0.16"
+    }
+  },
+  "env": [
+    { "key": "GOOGLE_CLIENT_ID", "example": "", "description": "Google OAuth — https://console.cloud.google.com/apis/credentials" },
+    { "key": "GOOGLE_CLIENT_SECRET", "example": "" },
+    { "key": "GITHUB_CLIENT_ID", "example": "", "description": "GitHub OAuth — https://github.com/settings/developers" },
+    { "key": "GITHUB_CLIENT_SECRET", "example": "" },
+    { "key": "OAUTH_REDIRECT_BASE_URL", "example": "", "description": "Public base URL for OAuth callbacks (defaults to WEB_URL). Callback: <base>/api/oauth/<provider>/callback" }
+  ],
+  "notes": [
+    "Set GOOGLE_* and/or GITHUB_* in apps/api/.env — providers without credentials stay hidden.",
+    "Authorized redirect URI: http://localhost:3000/api/oauth/google/callback (and /github/callback).",
+    "Users can link/unlink providers under Settings → Security."
+  ]
+}
