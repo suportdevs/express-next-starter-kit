@@ -42,6 +42,14 @@ export function requireRole(...roles: User['role'][]) {
   };
 }
 
+/** Blocks sensitive account changes while an admin is impersonating the user. */
+export function forbidImpersonation(req: Request, _res: Response, next: NextFunction) {
+  if (req.auth?.session.impersonatorId) {
+    throw forbidden('This action is not available while impersonating a user', 'IMPERSONATION_RESTRICTED');
+  }
+  next();
+}
+
 export function requireVerifiedEmail(req: Request, _res: Response, next: NextFunction) {
   if (!req.auth || req.auth.session.pending) throw unauthorized();
   if (!req.auth.user.emailVerifiedAt) throw forbidden('Please verify your email address first', 'EMAIL_NOT_VERIFIED');

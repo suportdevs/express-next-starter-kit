@@ -3,6 +3,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { pool } from '../src/db/client';
+import { client as makeClient } from './helpers';
 
 let app: Express;
 const email = `test-${Date.now()}@example.com`;
@@ -15,15 +16,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-/** Supertest agent that keeps cookies and sends the CSRF header. */
-const client = () => {
-  const agent = request.agent(app);
-  return {
-    get: (url: string) => agent.get(url),
-    post: (url: string, body?: object) => agent.post(url).set('X-Requested-With', 'test').send(body ?? {}),
-    patch: (url: string, body?: object) => agent.patch(url).set('X-Requested-With', 'test').send(body ?? {}),
-  };
-};
+const client = () => makeClient(app);
 
 describe('auth', () => {
   it('reports health', async () => {

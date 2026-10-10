@@ -1,12 +1,14 @@
 import { Logo } from '@/components/logo';
+import { ImpersonationBanner } from '@/components/app/impersonation-banner';
 import { SidebarNav } from '@/components/app/sidebar-nav';
 import { UserMenu } from '@/components/app/user-menu';
 import { VerifyEmailBanner } from '@/components/app/verify-email-banner';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { requireUser } from '@/lib/session';
+import { getSession, requireUser } from '@/lib/session';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const { impersonator } = await getSession();
   return (
     <div className="min-h-screen md:grid md:grid-cols-[240px_1fr]">
       <aside className="hidden bg-card px-4 py-4 md:sticky md:top-0 md:block md:h-screen md:border-r">
@@ -14,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <SidebarNav isAdmin={user.role === 'admin'} />
       </aside>
       <div className="flex min-w-0 flex-col">
+        {impersonator && <ImpersonationBanner impersonator={impersonator} userName={user.name} />}
         <header className="flex h-16 items-center justify-between border-b bg-card/60 px-6 backdrop-blur">
           <Logo href="/dashboard" className="md:hidden" />
           <div className="ml-auto flex items-center gap-2">

@@ -26,6 +26,8 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     error: {
       code: 'INTERNAL_ERROR',
       message: isProd ? 'Something went wrong' : (err as Error)?.message ?? 'Unknown error',
+      // Lets users quote an id that support can find in the logs.
+      requestId: typeof req.id === 'string' ? req.id : undefined,
     },
   };
   res.status(500).json(body);

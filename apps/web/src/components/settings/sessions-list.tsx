@@ -8,13 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api, errorMessage } from '@/lib/api';
-
-function describeAgent(ua: string | null): { label: string; mobile: boolean } {
-  if (!ua) return { label: 'Unknown device', mobile: false };
-  const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Unknown OS';
-  return { label: `${browser} on ${os}`, mobile: /Mobile|Android|iPhone/.test(ua) };
-}
+import { describeAgent } from '@/lib/audit';
 
 export function SessionsList() {
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);

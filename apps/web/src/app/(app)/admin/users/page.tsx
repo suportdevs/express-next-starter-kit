@@ -1,40 +1,55 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import type { PublicUser } from '@kit/shared';
-import { PageHeader } from '@/components/app/page-header';
+import type { AdminUser, Pagination as PaginationInfo } from '@kit/shared';
+import { Pagination } from '@/components/app/pagination';
+import { UserStatus } from '@/components/admin/user-status';
 import { Avatar } from '@/components/app/user-menu';
 import { Badge } from '@/components/ui/badge';
-import { buttonClasses } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { requireUser, serverFetch } from '@/lib/session';
+import { Select } from '@/components/ui/select';
+import { requireAdmin, serverFetch } from '@/lib/session';
 
 export const metadata: Metadata = { title: 'Users' };
 
 interface UsersResponse {
-  users: PublicUser[];
-  pagination: { page: number; pageSize: number; total: number };
+  users: AdminUser[];
+  pagination: PaginationInfo;
 }
 
-export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
-  const me = await requireUser();
-  if (me.role !== 'admin') notFound();
+type Search = { q?: string; page?: string; role?: string; status?: string };
 
-  const { q = '', page = '1' } = await searchParams;
-  const qs = new URLSearchParams({ page, ...(q ? { q } : {}) });
+export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<Search> }) {
+  await requireAdmin();
+  const { q = '', page = '1', role = '', status = '' } = await searchParams;
+  const filters = { q, role, status };
+  const qs = new URLSearchParams({ page });
+  for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, v);
   const data = await serverFetch<UsersResponse>(`/admin/users?${qs}`);
   if (!data) throw new Error('Failed to load users');
   const { users, pagination } = data;
-  const pages = Math.max(1, Math.ceil(pagination.total / pagination.pageSize));
-  const link = (p: number) => `/admin/users?${new URLSearchParams({ page: String(p), ...(q ? { q } : {}) })}`;
 
   return (
     <>
-      <PageHeader title="Users" description={`${pagination.total} registered users`} />
-      <form className="mb-4 max-w-sm">
-        <Input name="q" defaultValue={q} placeholder="Search by name or email…" />
+      <form className="mb-4 flex flex-wrap gap-2">
+        <Input name="q" defaultValue={q} placeholder="Search by name or email…" className="max-w-xs" />
+        <Select name="role" defaultValue={role} aria-label="Role">
+          <option value="">All roles</option>
+          <option value="user">Members</option>
+          <option value="admin">Admins</option>
+        </Select>
+        <Select name="status" defaultValue={status} aria-label="Status">
+          <option value="">Any status</option>
+          <option value="active">Active</option>
+          <option value="unverified">Unverified</option>
+          <option value="banned">Suspended</option>
+        </Select>
+        <Button type="submit" variant="outline">
+          Filter
+        </Button>
       </form>
+      <p className="mb-2 text-sm text-muted-foreground">{pagination.total.toLocaleString()} users</p>
       <Card className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
@@ -42,33 +57,37 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
               <th className="px-4 py-3 font-medium">User</th>
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Last sign-in</th>
               <th className="px-4 py-3 font-medium">Joined</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {users.map((u) => (
-              <tr key={u.id}>
+              <tr key={u.id} className="hover:bg-muted/30">
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
+                  <Link href={`/admin/users/${u.id}`} className="flex items-center gap-3">
                     <Avatar user={u} />
                     <div>
-                      <p className="font-medium">{u.name}</p>
+                      <p className="font-medium hover:underline">{u.name}</p>
                       <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
-                  </div>
+                  </Link>
                 </td>
                 <td className="px-4 py-3">
                   <Badge variant={u.role === 'admin' ? 'primary' : 'default'}>{u.role}</Badge>
                 </td>
                 <td className="px-4 py-3">
-                  {u.emailVerified ? <Badge variant="success">Verified</Badge> : <Badge>Unverified</Badge>}
+                  <UserStatus user={u} />
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{new Date(u.createdAt).toLocaleDateString()}</td>
               </tr>
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                   No users found.
                 </td>
               </tr>
@@ -76,25 +95,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
           </tbody>
         </table>
       </Card>
-      {pages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            Page {pagination.page} of {pages}
-          </span>
-          <div className="flex gap-2">
-            {pagination.page > 1 && (
-              <Link href={link(pagination.page - 1)} className={buttonClasses('outline', 'sm')}>
-                Previous
-              </Link>
-            )}
-            {pagination.page < pages && (
-              <Link href={link(pagination.page + 1)} className={buttonClasses('outline', 'sm')}>
-                Next
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+      <Pagination pagination={pagination} basePath="/admin/users" params={filters} />
     </>
   );
 }

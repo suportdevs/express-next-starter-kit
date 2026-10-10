@@ -39,6 +39,15 @@ const schema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   SMTP_SECURE: bool.default(false),
   MAIL_FROM: z.string().default('SaaS Kit <no-reply@example.com>'),
+
+  // "postgres" shares rate-limit counters between API instances; "memory" is per process.
+  RATE_LIMIT_STORE: z.enum(['memory', 'postgres']).default('memory'),
+  // Run the background job worker inside the API process. Set to false when
+  // running a dedicated worker (`node dist/worker.js`).
+  RUN_WORKER: bool.default(true),
+  JOB_POLL_INTERVAL_MS: z.coerce.number().int().min(100).default(1000),
+  JOB_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
+  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(365),
 });
 
 const parsed = schema.safeParse(process.env);

@@ -29,7 +29,33 @@ services:
       WEB_URL: ${WEB_URL:-http://localhost:3000}
       APP_SECRET: ${APP_SECRET:?Set APP_SECRET (32+ random chars)}
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      # Shared counters so rate limits hold across replicas.
+      RATE_LIMIT_STORE: postgres
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4000/api/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     # Not published: only reachable by the web container.
+
+  # Optional dedicated job worker. To use it, set RUN_WORKER=false on `api` and run:
+  #   docker compose -f docker-compose.prod.yml --profile worker up -d
+  worker:
+    profiles: [worker]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    env_file:
+      - path: apps/api/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-kit}:${POSTGRES_PASSWORD:-kit}@postgres:5432/${POSTGRES_DB:-kit}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET (32+ random chars)}
+    command: ['node', 'dist/worker.js']
 
   web:
     build:
@@ -37,8 +63,10 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         API_URL: http://api:4000
+        NEXT_PUBLIC_SITE_URL: ${WEB_URL:-http://localhost:3000}
     restart: unless-stopped
-    depends_on: [api]
+    depends_on:
+      api: { condition: service_healthy }
     ports:
       - '3000:3000'
 

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { AuthCard } from '@/components/auth-card';
 import { AuthProviders } from '@/components/auth/auth-providers';
 import { RegisterForm } from '@/components/auth/register-form';
@@ -23,7 +24,9 @@ export default async function RegisterPage() {
       }
     >
       <div className="space-y-4">
-        <RegisterForm />
+        <Suspense>
+          <RegisterForm />
+        </Suspense>
         <AuthProviders mode="register" />
       </div>
     </AuthCard>

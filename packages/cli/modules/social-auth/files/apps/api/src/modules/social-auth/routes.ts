@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { Router } from 'express';
 import passport from 'passport';
 import {
+  AppError,
   badRequest,
   env,
   isProd,
@@ -120,6 +121,7 @@ router.get('/:provider/callback', (req, res, next) => {
       return webRedirect(res, saved.next);
     } catch (e) {
       if (e instanceof OAuthError) return webRedirect(res, `${failPath}${e.code}`);
+      if (e instanceof AppError && e.code === 'ACCOUNT_SUSPENDED') return webRedirect(res, `${failPath}account_suspended`);
       next(e);
     }
   })(req, res, next);

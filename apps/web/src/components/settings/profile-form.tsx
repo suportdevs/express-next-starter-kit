@@ -44,9 +44,6 @@ export function ProfileForm({ user }: { user: PublicUser }) {
           <Field id="name" label="Name" error={errors.name?.message ?? errors.root?.message}>
             <Input id="name" aria-invalid={!!errors.name} {...register('name')} />
           </Field>
-          <Field id="email" label="Email" hint="Contact support to change your email address.">
-            <Input id="email" value={user.email} disabled readOnly />
-          </Field>
         </CardContent>
         <CardFooter className="justify-end">
           <Button type="submit" loading={isSubmitting} disabled={!isDirty}>

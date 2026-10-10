@@ -4,7 +4,7 @@ import { CheckCircle2, Circle } from 'lucide-react';
 import { PageHeader } from '@/components/app/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireUser } from '@/lib/session';
-import { installedModules } from '@/modules/registry';
+import { dashboardWidgets, hasModule } from '@/modules/registry';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   const checklist = [
     { done: true, label: 'Create your account' },
     { done: user.emailVerified, label: 'Verify your email address' },
-    ...(installedModules.some((m) => m.name === 'two-factor')
+    ...(hasModule('two-factor')
       ? [{ done: Boolean(user.twoFactorEnabled), label: 'Enable two-factor authentication', href: '/settings/security' }]
       : []),
   ];
@@ -22,10 +22,20 @@ export default async function DashboardPage() {
     <>
       <PageHeader title={`Welcome, ${user.name.split(' ')[0]} 👋`} description="Here's what's happening with your account." />
       <div className="grid gap-4 md:grid-cols-3">
-        <Stat label="Plan" value="Free" />
+        {/* `plan` is added to the user by the billing module */}
+        {hasModule('billing') ? (
+          <Stat label="Plan" value={typeof user.planName === 'string' ? user.planName : 'Free'} />
+        ) : (
+          <Stat label="Email" value={user.emailVerified ? 'Verified' : 'Unverified'} />
+        )}
         <Stat label="Member since" value={new Date(user.createdAt).toLocaleDateString()} />
         <Stat label="Role" value={user.role === 'admin' ? 'Administrator' : 'Member'} />
       </div>
+      {dashboardWidgets.map((Widget, i) => (
+        <div key={i} className="mt-6">
+          <Widget user={user} />
+        </div>
+      ))}
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Getting started</CardTitle>

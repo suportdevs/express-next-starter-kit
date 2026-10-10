@@ -13,6 +13,7 @@ const errorMessages: Record<string, string> = {
   oauth_failed: 'Social sign-in failed. Please try again.',
   oauth_email_missing: 'Your social account did not share a verified email address.',
   session_expired: 'Your session expired. Please sign in again.',
+  account_suspended: 'This account has been suspended. Contact support if you think this is a mistake.',
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

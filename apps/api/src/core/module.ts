@@ -13,9 +13,15 @@ export interface ApiModule {
   name: string;
   /** Express router mounted at `/api/<basePath>`. */
   router?: Router;
+  /**
+   * Mounted at `/api/<basePath>` *before* the CSRF guard, rate limiter and
+   * session middleware — for webhooks and other server-to-server callbacks
+   * that must verify their own signatures. `req.rawBody` holds the raw bytes.
+   */
+  publicRouter?: Router;
   /** Defaults to the module name. */
   basePath?: string;
-  /** Runs once at startup before routes are mounted. Register hooks here. */
+  /** Runs once per process at startup, before routes are mounted. Register hooks, jobs and schedules here. */
   setup?: (ctx: ModuleContext) => void | Promise<void>;
 }
 

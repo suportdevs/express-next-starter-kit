@@ -18,7 +18,7 @@ export function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     ...moduleNavItems,
     { href: '/settings', label: 'Settings', icon: Settings },
-    ...(isAdmin ? [{ href: '/admin/users', label: 'Admin', icon: Shield }] : []),
+    ...(isAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : []),
   ];
   return (
     <nav className="flex gap-1 md:flex-col">

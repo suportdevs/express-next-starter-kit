@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
-import { env } from '../config/env';
+import { env, isTest } from '../config/env';
+import { defineJob } from '../core/jobs';
 import { logger } from './logger';
 
 export interface MailMessage {
@@ -22,19 +23,28 @@ function getTransporter(): Transporter | null {
   return transporter;
 }
 
-/**
- * Sends an email. Without SMTP configured, the message is logged instead so
- * local development works with zero setup. Failures are logged, never thrown,
- * so a mail outage can't break sign-up or login flows.
- */
-export async function sendMail(message: MailMessage): Promise<void> {
+/** Delivers immediately. Throws on SMTP failure so the job queue can retry. */
+export async function deliverMail(message: MailMessage): Promise<void> {
   const t = getTransporter();
   if (!t) {
     logger.info({ to: message.to, subject: message.subject, text: message.text }, '📧 Email (SMTP not configured)');
     return;
   }
+  await t.sendMail({ from: env.MAIL_FROM, ...message });
+}
+
+const mailJob = defineJob<MailMessage>('mail.send', deliverMail, { maxAttempts: 6 });
+
+/**
+ * Sends an email through the background job queue (retried with backoff on
+ * SMTP errors). Without SMTP configured the message is logged instead, so
+ * local development works with zero setup. Never throws, so a mail outage
+ * can't break sign-up or login flows.
+ */
+export async function sendMail(message: MailMessage): Promise<void> {
   try {
-    await t.sendMail({ from: env.MAIL_FROM, ...message });
+    if (isTest) return await deliverMail(message);
+    await mailJob.enqueue(message);
   } catch (err) {
     logger.error({ err, to: message.to, subject: message.subject }, 'Failed to send email');
   }

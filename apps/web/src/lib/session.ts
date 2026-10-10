@@ -1,8 +1,8 @@
 import 'server-only';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import type { PublicUser } from '@kit/shared';
+import { notFound, redirect } from 'next/navigation';
+import type { Impersonator, PublicUser } from '@kit/shared';
 import { challengePath } from '@/modules/registry';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -10,6 +10,8 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 export interface SessionState {
   user: PublicUser | null;
   challenge: string | null;
+  /** Set while an admin is signed in as this user. */
+  impersonator?: Impersonator | null;
 }
 
 /** Server-side fetch to the API, forwarding the user's cookies. */
@@ -31,6 +33,13 @@ export async function serverFetch<T>(path: string): Promise<T | null> {
 export const getSession = cache(async (): Promise<SessionState> => {
   return (await serverFetch<SessionState>('/auth/session')) ?? { user: null, challenge: null };
 });
+
+/** Use in admin pages. Unknown to non-admins (404). */
+export async function requireAdmin(): Promise<PublicUser> {
+  const user = await requireUser();
+  if (user.role !== 'admin') notFound();
+  return user;
+}
 
 /** Use in protected layouts/pages. Redirects to login (or the pending challenge). */
 export async function requireUser(): Promise<PublicUser> {

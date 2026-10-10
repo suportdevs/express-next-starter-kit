@@ -2,15 +2,20 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { themeScript } from '@/components/theme-toggle';
-import { appName } from '@/lib/utils';
+import { appName, siteUrl } from '@/lib/utils';
 import './globals.css';
 
 const sans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const mono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
+const description = 'The fastest way to launch your SaaS.';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: { default: appName, template: `%s · ${appName}` },
-  description: 'The fastest way to launch your SaaS.',
+  description,
+  openGraph: { type: 'website', siteName: appName, title: appName, description, url: siteUrl },
+  twitter: { card: 'summary_large_image', title: appName, description },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

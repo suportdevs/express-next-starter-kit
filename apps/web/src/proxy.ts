@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? 'sid';
-const PROTECTED = ['/dashboard', '/settings', '/admin'];
+const PROTECTED = ['/dashboard', '/settings', '/admin', '/orgs'];
 
 /**
  * Fast, optimistic redirect for signed-out visitors. This only checks that a
@@ -20,5 +20,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/settings/:path*', '/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/settings/:path*', '/admin/:path*', '/orgs/:path*'],
 };

@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/server.ts",
+    "dev:worker": "tsx watch --clear-screen=false src/worker.ts",
     "build": "tsup",
     "start": "node dist/server.js",
+    "start:worker": "node dist/worker.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",

@@ -22,6 +22,12 @@ export interface WebModule {
   challenges?: Record<string, string>;
   /** Extra items in the app sidebar. */
   navItems?: NavItem[];
+  /** Extra tabs under Settings (the module ships the page at `href`). */
+  settingsTabs?: { href: string; label: string }[];
+  /** Links in the public marketing header/footer (e.g. "Pricing"). */
+  publicNavItems?: { href: string; label: string }[];
+  /** Cards rendered on the dashboard below the stats. */
+  dashboardWidgets?: ComponentType<{ user: PublicUser }>[];
 }
 
 export const defineWebModule = (mod: WebModule): WebModule => mod;

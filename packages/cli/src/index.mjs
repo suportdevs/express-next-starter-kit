@@ -28,6 +28,7 @@ ${pc.bold('Options')}
 
 ${pc.bold('Examples')}
   npm run kit add two-factor
+  npm run kit add billing organizations
   npm run kit add social-auth -- --skip-install
   npm run kit remove two-factor
 `;

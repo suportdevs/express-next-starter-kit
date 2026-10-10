@@ -42,6 +42,7 @@ export interface ApiErrorBody {
     code: string;
     message: string;
     details?: Record<string, string[]>;
+    requestId?: string;
   };
 }
 
@@ -49,4 +50,55 @@ export interface AppFeatures {
   /** Installed module names, e.g. ["two-factor", "social-auth"]. */
   modules: string[];
   [extra: string]: unknown;
+}
+
+/** Extra fields only admins can see. */
+export interface AdminUser extends PublicUser {
+  bannedAt: string | null;
+  bannedReason: string | null;
+  lastLoginAt: string | null;
+  updatedAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  actorId: string | null;
+  /** Populated in admin listings. */
+  actor?: { id: string; name: string; email: string } | null;
+  targetType: string | null;
+  targetId: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AdminStats {
+  users: {
+    total: number;
+    verified: number;
+    admins: number;
+    banned: number;
+    new7d: number;
+    new30d: number;
+    activeSessions: number;
+    activeUsers7d: number;
+  };
+  /** Sign-ups per day for the last 30 days (oldest first). */
+  signups: { date: string; count: number }[];
+  jobs: { pending: number; failed: number };
+}
+
+export interface Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+/** Present on GET /auth/session while an admin is signed in as another user. */
+export interface Impersonator {
+  id: string;
+  name: string;
+  email: string;
 }

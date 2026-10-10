@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -7,6 +8,7 @@ import { pinoHttp } from 'pino-http';
 import { sql } from 'drizzle-orm';
 import { env } from './config/env';
 import { hooks } from './core/hooks';
+import { registerMaintenanceTasks } from './core/maintenance';
 import { db } from './db/client';
 import { logger } from './lib/logger';
 import { loadSession } from './middleware/auth';
@@ -18,6 +20,8 @@ import { authRouter } from './modules/auth/routes';
 import { installedModules } from './modules/registry';
 import { usersRouter } from './modules/users/routes';
 
+let initialized = false;
+
 export async function createApp(): Promise<Express> {
   const app = express();
 
@@ -25,32 +29,67 @@ export async function createApp(): Promise<Express> {
   app.set('trust proxy', Number.isNaN(trustProxy) ? env.TRUST_PROXY : trustProxy);
   app.disable('x-powered-by');
 
-  app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
+  app.use(
+    pinoHttp({
+      logger,
+      // Reuse an upstream request id (load balancer / Next.js) or mint one, and echo it back.
+      genReqId: (req, res) => {
+        const incoming = req.headers['x-request-id'];
+        const id = typeof incoming === 'string' && /^[\w.-]{1,100}$/.test(incoming) ? incoming : randomUUID();
+        res.setHeader('x-request-id', id);
+        return id;
+      },
+      autoLogging: { ignore: (req) => req.url?.startsWith('/api/health') ?? false },
+    }),
+  );
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }));
   app.use(compression());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(
+    express.json({
+      limit: '1mb',
+      // Keep the raw bytes for webhook signature verification (e.g. Stripe).
+      verify: (req, _res, buf) => {
+        (req as express.Request).rawBody = buf;
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
   app.use(cookieParser());
+
+  // Liveness: the process is up. Readiness: it can reach the database.
+  app.get('/api/health/live', (_req, res) => {
+    res.json({ status: 'ok' });
+  });
+  app.get('/api/health', async (req, res) => {
+    try {
+      await db.execute(sql`select 1`);
+      res.json({ status: 'ok', uptime: process.uptime() });
+    } catch (err) {
+      req.log.error({ err }, 'Health check failed');
+      res.status(503).json({ status: 'error', database: 'unreachable' });
+    }
+  });
 
   const api = express.Router();
   api.use(apiLimiter);
   api.use(csrfGuard);
   api.use(loadSession);
 
-  api.get('/health', async (_req, res) => {
-    await db.execute(sql`select 1`);
-    res.json({ status: 'ok', uptime: process.uptime() });
-  });
-
   api.get('/features', async (_req, res) => {
     const extras = await Promise.all(hooks.featureProviders.map((fn) => fn()));
     res.json(Object.assign({ modules: installedModules.map((m) => m.name) }, ...extras));
   });
 
-  // Modules set up first so their hooks are in place before any request.
-  for (const mod of installedModules) {
-    await mod.setup?.({ app, hooks, logger: logger.child({ module: mod.name }) });
+  // Hooks, jobs and schedules are process-wide: register them only once even
+  // if createApp() is called again (e.g. by tests).
+  if (!initialized) {
+    initialized = true;
+    registerMaintenanceTasks();
+    // Modules set up first so their hooks are in place before any request.
+    for (const mod of installedModules) {
+      await mod.setup?.({ app, hooks, logger: logger.child({ module: mod.name }) });
+    }
   }
 
   api.use('/auth', authRouter);
@@ -60,6 +99,10 @@ export async function createApp(): Promise<Express> {
     if (mod.router) api.use(`/${mod.basePath ?? mod.name}`, mod.router);
   }
 
+  // Third-party callbacks (webhooks) skip the CSRF guard, rate limiter and session loading.
+  for (const mod of installedModules) {
+    if (mod.publicRouter) app.use(`/api/${mod.basePath ?? mod.name}`, mod.publicRouter);
+  }
   app.use('/api', api);
   app.use(notFoundHandler);
   app.use(errorHandler);

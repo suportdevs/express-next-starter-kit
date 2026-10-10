@@ -7,6 +7,8 @@ declare global {
     interface Request {
       /** Set by the session middleware when a valid session cookie is present. */
       auth?: { session: DbSession; user: DbUser; token: string };
+      /** Raw request body (JSON requests only) for webhook signature checks. */
+      rawBody?: Buffer;
     }
   }
 }

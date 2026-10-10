@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ActivityList } from '@/components/settings/activity-list';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsList } from '@/components/settings/sessions-list';
 import { requireUser } from '@/lib/session';
@@ -16,6 +17,7 @@ export default async function SecuritySettingsPage() {
         <Section key={i} user={user} />
       ))}
       <SessionsList />
+      <ActivityList />
     </>
   );
 }

@@ -25,4 +25,8 @@ Next steps:
   npm run db:migrate   # create tables
   npm run db:seed      # optional: admin@example.com / Admin12345
   npm run dev          # http://localhost:3000  (emails: http://localhost:8025)
+
+Optional modules:
+  npm run kit list
+  npm run kit add two-factor social-auth billing organizations
 `);

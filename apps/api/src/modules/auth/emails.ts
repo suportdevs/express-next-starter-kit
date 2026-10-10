@@ -45,3 +45,51 @@ export function sendPasswordChangedEmail(to: string, name: string) {
     }),
   });
 }
+
+export function sendEmailChangeConfirmation(to: string, name: string, token: string) {
+  const url = `${env.WEB_URL}/confirm-email?token=${encodeURIComponent(token)}`;
+  return sendMail({
+    to,
+    subject: `Confirm your new email for ${env.APP_NAME}`,
+    ...renderEmail({
+      heading: 'Confirm your new email address',
+      body: [
+        `Hi ${name},`,
+        `You asked to use this address for your ${env.APP_NAME} account. Confirm it to finish the change.`,
+        'This link expires in 1 hour. If you didn\'t request this, you can ignore this email.',
+      ],
+      action: { label: 'Confirm email', url },
+    }),
+  });
+}
+
+export function sendEmailChangeNotice(to: string, name: string, newEmail: string) {
+  return sendMail({
+    to,
+    subject: `Your ${env.APP_NAME} email is being changed`,
+    ...renderEmail({
+      heading: 'Email change requested',
+      body: [
+        `Hi ${name},`,
+        `Someone (hopefully you) asked to change the email for your account to ${newEmail}.`,
+        'The change only happens once the new address is confirmed. If this wasn\'t you, change your password right away.',
+      ],
+    }),
+  });
+}
+
+export function sendAccountSuspendedEmail(to: string, name: string, reason?: string | null) {
+  return sendMail({
+    to,
+    subject: `Your ${env.APP_NAME} account was suspended`,
+    ...renderEmail({
+      heading: 'Your account was suspended',
+      body: [
+        `Hi ${name},`,
+        'An administrator suspended your account and signed you out of all devices.',
+        ...(reason ? [`Reason: ${reason}`] : []),
+        'Reply to this email if you think this is a mistake.',
+      ],
+    }),
+  });
+}

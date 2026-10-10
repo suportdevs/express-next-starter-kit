@@ -3,11 +3,16 @@ import type { RegisterInput } from '@kit/shared';
 import { db } from '../../db/client';
 import { users, type User } from '../../db/schema';
 import { hooks } from '../../core/hooks';
-import { consumeToken, issueToken } from '../../core/tokens';
+import { consumeToken, consumeTokenData, issueToken } from '../../core/tokens';
 import { deleteUserSessions } from '../../core/session';
-import { conflict } from '../../lib/errors';
+import { badRequest, conflict } from '../../lib/errors';
 import { fakePasswordVerify, hashPassword, verifyPassword } from '../../lib/password';
-import { sendPasswordResetEmail, sendVerificationEmail } from './emails';
+import {
+  sendEmailChangeConfirmation,
+  sendEmailChangeNotice,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from './emails';
 
 const HOUR = 60 * 60 * 1000;
 
@@ -58,9 +63,10 @@ export async function requestPasswordReset(email: string) {
   await sendPasswordResetEmail(user.email, user.name, token);
 }
 
-export async function resetPassword(token: string, password: string): Promise<boolean> {
+/** Returns the user id on success, or null if the token is invalid/expired. */
+export async function resetPassword(token: string, password: string): Promise<string | null> {
   const userId = await consumeToken(token, 'password_reset');
-  if (!userId) return false;
+  if (!userId) return null;
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
   await db
     .update(users)
@@ -71,5 +77,28 @@ export async function resetPassword(token: string, password: string): Promise<bo
     })
     .where(eq(users.id, userId));
   await deleteUserSessions(userId);
-  return true;
+  return userId;
+}
+
+/** Starts an email change: the new address must be confirmed before it takes effect. */
+export async function requestEmailChange(user: User, newEmail: string) {
+  const email = newEmail.toLowerCase();
+  if (email === user.email) throw badRequest('That is already your email address', 'SAME_EMAIL');
+  if (await findUserByEmail(email)) throw conflict('An account with this email already exists', 'EMAIL_TAKEN');
+  const token = await issueToken(user.id, 'email_change', HOUR, { email });
+  await sendEmailChangeConfirmation(email, user.name, token);
+  await sendEmailChangeNotice(user.email, user.name, email);
+}
+
+/** Applies a confirmed email change. Returns the old and new address, or null if the token is invalid. */
+export async function confirmEmailChange(token: string): Promise<{ userId: string; from: string; to: string } | null> {
+  const result = await consumeTokenData(token, 'email_change');
+  const email = typeof result?.data.email === 'string' ? result.data.email : null;
+  if (!result || !email) return null;
+  const user = await db.query.users.findFirst({ where: eq(users.id, result.userId) });
+  if (!user) return null;
+  if (await findUserByEmail(email)) throw conflict('An account with this email already exists', 'EMAIL_TAKEN');
+  // Clicking the link proves ownership of the new inbox.
+  await db.update(users).set({ email, emailVerifiedAt: new Date() }).where(eq(users.id, user.id));
+  return { userId: user.id, from: user.email, to: email };
 }

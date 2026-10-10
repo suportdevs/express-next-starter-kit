@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerSchema, type LoginResponse, type RegisterInput } from '@kit/shared';
@@ -11,9 +11,11 @@ import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { handleFormError } from '@/lib/form';
 import { challengePath } from '@/modules/registry';
+import { safeNext } from './login-form';
 
 export function RegisterForm() {
   const router = useRouter();
+  const next = safeNext(useSearchParams().get('next'));
   const {
     register,
     handleSubmit,
@@ -24,7 +26,7 @@ export function RegisterForm() {
   const onSubmit = handleSubmit(async (values) => {
     try {
       const res = await api.post<LoginResponse>('/auth/register', values);
-      router.push('challenge' in res ? challengePath(res.challenge) : '/dashboard');
+      router.push('challenge' in res ? challengePath(res.challenge) : next);
       router.refresh();
     } catch (err) {
       handleFormError(err, setError);

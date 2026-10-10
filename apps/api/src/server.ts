@@ -1,6 +1,6 @@
 import { env } from './config/env';
 import { createApp } from './app';
-import { purgeExpiredSessions } from './core/session';
+import { worker } from './core/jobs';
 import { pool } from './db/client';
 import { logger } from './lib/logger';
 import { installedModules } from './modules/registry';
@@ -13,23 +13,29 @@ async function main() {
       `🚀 API listening on http://localhost:${env.PORT}`,
     );
   });
+  // Keep-alive must outlive the load balancer's idle timeout to avoid 502s.
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
 
-  // Housekeeping: drop expired sessions hourly.
-  const cleanup = setInterval(() => purgeExpiredSessions().catch((err) => logger.warn({ err }, 'Session cleanup failed')), 60 * 60 * 1000);
-  cleanup.unref();
+  if (env.RUN_WORKER) worker.start();
 
+  let shuttingDown = false;
   const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     logger.info(`${signal} received, shutting down…`);
-    clearInterval(cleanup);
+    setTimeout(() => process.exit(1), 10_000).unref();
     server.close(async () => {
+      await worker.stop();
       await pool.end();
       process.exit(0);
     });
-    setTimeout(() => process.exit(1), 10_000).unref();
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
+
+process.on('unhandledRejection', (err) => logger.error({ err }, 'Unhandled promise rejection'));
 
 main().catch((err) => {
   logger.fatal({ err }, 'Failed to start server');
