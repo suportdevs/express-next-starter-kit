@@ -46,9 +46,17 @@ export interface ApiErrorBody {
   };
 }
 
+export interface AuthFeatures {
+  emailVerification: 'off' | 'optional' | 'required';
+  /** Forms protected by the math captcha. */
+  captcha: string[];
+  lockout: { maxAttempts: number; minutes: number } | null;
+}
+
 export interface AppFeatures {
   /** Installed module names, e.g. ["two-factor", "social-auth"]. */
   modules: string[];
+  auth?: AuthFeatures;
   [extra: string]: unknown;
 }
 

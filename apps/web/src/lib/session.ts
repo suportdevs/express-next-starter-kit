@@ -2,7 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import type { Impersonator, PublicUser } from '@kit/shared';
+import type { AppFeatures, Impersonator, PublicUser } from '@kit/shared';
 import { challengePath } from '@/modules/registry';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -28,6 +28,9 @@ export async function serverFetch<T>(path: string): Promise<T | null> {
     return null;
   }
 }
+
+/** GET /api/features, de-duplicated per request. */
+export const getFeatures = cache(async (): Promise<AppFeatures | null> => serverFetch<AppFeatures>('/features'));
 
 /** Current session, de-duplicated per request. */
 export const getSession = cache(async (): Promise<SessionState> => {

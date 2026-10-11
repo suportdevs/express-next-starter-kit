@@ -1,5 +1,9 @@
 // Public surface for modules: import from '@/core' (or relative '../../core').
+export * from './accounts';
 export * from './audit';
+export * from './captcha';
+export * from './context';
+export * from './lockout';
 export * from './auth-flow';
 export * from './hooks';
 export * from './jobs';

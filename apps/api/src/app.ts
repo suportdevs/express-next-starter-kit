@@ -7,11 +7,13 @@ import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { sql } from 'drizzle-orm';
 import { env } from './config/env';
+import { registerAccountHooks } from './core/accounts';
+import { requestContext } from './core/context';
 import { hooks } from './core/hooks';
 import { registerMaintenanceTasks } from './core/maintenance';
 import { db } from './db/client';
 import { logger } from './lib/logger';
-import { loadSession } from './middleware/auth';
+import { enforceEmailVerification, loadSession } from './middleware/auth';
 import { csrfGuard } from './middleware/csrf';
 import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { apiLimiter } from './middleware/rate-limit';
@@ -74,11 +76,18 @@ export async function createApp(): Promise<Express> {
   const api = express.Router();
   api.use(apiLimiter);
   api.use(csrfGuard);
+  api.use(requestContext);
   api.use(loadSession);
+  api.use(enforceEmailVerification);
 
   api.get('/features', async (_req, res) => {
     const extras = await Promise.all(hooks.featureProviders.map((fn) => fn()));
-    res.json(Object.assign({ modules: installedModules.map((m) => m.name) }, ...extras));
+    const auth = {
+      emailVerification: env.EMAIL_VERIFICATION,
+      captcha: env.CAPTCHA_ENABLED ? env.CAPTCHA_FORMS : [],
+      lockout: env.LOGIN_MAX_ATTEMPTS > 0 ? { maxAttempts: env.LOGIN_MAX_ATTEMPTS, minutes: env.LOGIN_LOCKOUT_MINUTES } : null,
+    };
+    res.json(Object.assign({ modules: installedModules.map((m) => m.name), auth }, ...extras));
   });
 
   // Hooks, jobs and schedules are process-wide: register them only once even
@@ -86,6 +95,7 @@ export async function createApp(): Promise<Express> {
   if (!initialized) {
     initialized = true;
     registerMaintenanceTasks();
+    registerAccountHooks();
     // Modules set up first so their hooks are in place before any request.
     for (const mod of installedModules) {
       await mod.setup?.({ app, hooks, logger: logger.child({ module: mod.name }) });

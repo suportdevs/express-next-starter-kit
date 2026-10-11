@@ -12,12 +12,14 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { handleFormError } from '@/lib/form';
+import { useCaptcha } from './captcha';
 import { challengePath } from '@/modules/registry';
 
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNext(params.get('next'));
+  const captcha = useCaptcha('login');
   const {
     register,
     handleSubmit,
@@ -27,7 +29,7 @@ export function LoginForm() {
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      const res = await api.post<LoginResponse>('/auth/login', values);
+      const res = await api.post<LoginResponse>('/auth/login', { ...values, captcha: captcha.value });
       if ('challenge' in res) {
         router.push(`${challengePath(res.challenge)}?next=${encodeURIComponent(next)}`);
       } else {
@@ -36,6 +38,7 @@ export function LoginForm() {
       }
     } catch (err) {
       handleFormError(err, setError);
+      void captcha.refresh();
     }
   });
 
@@ -57,6 +60,7 @@ export function LoginForm() {
       >
         <Input id="password" type="password" autoComplete="current-password" aria-invalid={!!errors.password} {...register('password')} />
       </Field>
+      {captcha.field}
       <label className="flex items-center gap-2 text-sm text-muted-foreground">
         <Checkbox {...register('remember')} /> Keep me signed in
       </label>

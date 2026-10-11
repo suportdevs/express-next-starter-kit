@@ -19,7 +19,43 @@ export function GitHubIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Brand-coloured tile with a glyph — used for providers without a bundled logo. */
+function brandTile(bg: string, glyph: string, opts: { fontSize?: number; fg?: string } = {}) {
+  return function BrandTile(props: SVGProps<SVGSVGElement>) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden {...props}>
+        <rect width="24" height="24" rx="5" fill={bg} />
+        <text
+          x="12"
+          y="12.5"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={opts.fg ?? '#fff'}
+          fontFamily="Arial, Helvetica, sans-serif"
+          fontWeight="700"
+          fontSize={opts.fontSize ?? 15}
+        >
+          {glyph}
+        </text>
+      </svg>
+    );
+  };
+}
+
+export const FacebookIcon = brandTile('#1877F2', 'f', { fontSize: 18 });
+export const XIcon = brandTile('#000000', '𝕏', { fontSize: 14 });
+export const LinkedInIcon = brandTile('#0A66C2', 'in', { fontSize: 12 });
+export const BitbucketIcon = brandTile('#2684FF', 'B', { fontSize: 14 });
+export const GitLabIcon = brandTile('#FC6D26', 'GL', { fontSize: 10 });
+export const SlackIcon = brandTile('#4A154B', '#', { fontSize: 16 });
+
 export const providerIcons: Record<string, (p: SVGProps<SVGSVGElement>) => React.JSX.Element> = {
   google: GoogleIcon,
+  facebook: FacebookIcon,
   github: GitHubIcon,
+  twitter: XIcon,
+  linkedin: LinkedInIcon,
+  bitbucket: BitbucketIcon,
+  gitlab: GitLabIcon,
+  slack: SlackIcon,
 };

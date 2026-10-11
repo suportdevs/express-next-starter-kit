@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { env } from '../config/env';
 import type { User } from '../db/schema';
 import { clearSessionCookie, sessionCookieName, setSessionCookie, validateSessionToken } from '../core/session';
 import { forbidden, unauthorized } from '../lib/errors';
@@ -47,6 +48,19 @@ export function forbidImpersonation(req: Request, _res: Response, next: NextFunc
   if (req.auth?.session.impersonatorId) {
     throw forbidden('This action is not available while impersonating a user', 'IMPERSONATION_RESTRICTED');
   }
+  next();
+}
+
+// Reachable while EMAIL_VERIFICATION=required and the address isn't verified yet.
+const UNVERIFIED_ALLOWED = ['/auth/', '/features', '/users/me/email', '/billing/plans', '/organizations/invitations/lookup'];
+
+/** Global: with EMAIL_VERIFICATION=required, unverified users can only use auth/account endpoints. */
+export function enforceEmailVerification(req: Request, _res: Response, next: NextFunction) {
+  if (env.EMAIL_VERIFICATION !== 'required' || !req.auth || req.auth.session.pending) return next();
+  if (req.auth.user.emailVerifiedAt) return next();
+  const allowed =
+    UNVERIFIED_ALLOWED.some((p) => req.path === p || req.path.startsWith(p)) || (req.method === 'DELETE' && req.path === '/users/me');
+  if (!allowed) throw forbidden('Please verify your email address first', 'EMAIL_NOT_VERIFIED');
   next();
 }
 

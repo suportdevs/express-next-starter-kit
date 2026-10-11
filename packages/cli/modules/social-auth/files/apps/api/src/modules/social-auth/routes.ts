@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
 import { Router } from 'express';
-import passport from 'passport';
 import {
   AppError,
   badRequest,
+  decrypt,
+  encrypt,
   env,
   isProd,
   logger,
@@ -11,20 +12,21 @@ import {
   randomToken,
   requireAuth,
   safeEqual,
-  sign,
   signIn,
 } from '../../core';
-import { providers, type OAuthProfile } from './providers';
+import { authorizationUrl, createPkce, exchangeCode } from './oauth';
+import { providers } from './providers';
 import { OAuthError, findOrCreateUser, linkAccount, listAccounts, unlinkAccount } from './service';
 
 export const router = Router();
-router.use(passport.initialize());
 
 const STATE_COOKIE = 'oauth_state';
 const STATE_PURPOSE = 'oauth-state';
 
 interface OAuthState {
+  provider: string;
   state: string;
+  verifier?: string;
   next: string;
   mode: 'login' | 'link';
 }
@@ -34,9 +36,9 @@ const safeNext = (v: unknown, fallback: string) =>
 
 const webRedirect = (res: Response, path: string) => res.redirect(`${env.WEB_URL}${path}`);
 
+// The state (incl. the PKCE verifier) is encrypted, so it can't be read or forged from the cookie.
 function writeState(res: Response, data: OAuthState) {
-  const payload = Buffer.from(JSON.stringify(data)).toString('base64url');
-  res.cookie(STATE_COOKIE, `${payload}.${sign(payload, STATE_PURPOSE)}`, {
+  res.cookie(STATE_COOKIE, encrypt(JSON.stringify(data), STATE_PURPOSE), {
     httpOnly: true,
     secure: isProd,
     sameSite: 'lax', // must survive the top-level redirect back from the provider
@@ -49,10 +51,8 @@ function readState(req: Request, res: Response): OAuthState | null {
   const raw = req.cookies?.[STATE_COOKIE];
   res.clearCookie(STATE_COOKIE, { path: '/api/oauth' });
   if (typeof raw !== 'string') return null;
-  const [payload, sig] = raw.split('.');
-  if (!payload || !sig || !safeEqual(sig, sign(payload, STATE_PURPOSE))) return null;
   try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString()) as OAuthState;
+    return JSON.parse(decrypt(raw, STATE_PURPOSE)) as OAuthState;
   } catch {
     return null;
   }
@@ -79,7 +79,7 @@ router.delete('/accounts/:provider', requireAuth, async (req, res) => {
 });
 
 /** Starts the OAuth dance: /api/oauth/google?next=/dashboard[&mode=link] */
-router.get('/:provider', (req, res, next) => {
+router.get('/:provider', (req, res) => {
   const provider = providers.get(String(req.params.provider));
   if (!provider) throw notFound('Unknown or unconfigured provider');
 
@@ -87,42 +87,51 @@ router.get('/:provider', (req, res, next) => {
   if (mode === 'link' && (!req.auth || req.auth.session.pending)) return webRedirect(res, '/login');
 
   const state = randomToken(16);
-  writeState(res, { state, mode, next: safeNext(req.query.next, mode === 'link' ? '/settings/security' : '/dashboard') });
-  passport.authenticate(provider.id, { session: false, scope: provider.scope, state })(req, res, next);
+  const pkce = provider.pkce ? createPkce() : null;
+  writeState(res, {
+    provider: provider.id,
+    state,
+    verifier: pkce?.verifier,
+    mode,
+    next: safeNext(req.query.next, mode === 'link' ? '/settings/security' : '/dashboard'),
+  });
+  res.redirect(authorizationUrl(provider, state, pkce?.challenge));
 });
 
-router.get('/:provider/callback', (req, res, next) => {
+router.get('/:provider/callback', async (req, res) => {
   const provider = providers.get(String(req.params.provider));
   if (!provider) throw notFound('Unknown or unconfigured provider');
 
   const saved = readState(req, res);
   const returned = typeof req.query.state === 'string' ? req.query.state : '';
-  if (!saved || !returned || !safeEqual(saved.state, returned)) {
+  if (!saved || saved.provider !== provider.id || !returned || !safeEqual(saved.state, returned)) {
     return webRedirect(res, '/login?error=oauth_failed');
   }
+  const failPath = saved.mode === 'link' ? '/settings/security?error=' : '/login?error=';
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+  if (!code) {
+    // e.g. ?error=access_denied when the user cancels on the provider's screen.
+    return webRedirect(res, `${failPath}${req.query.error === 'access_denied' ? 'oauth_cancelled' : 'oauth_failed'}`);
+  }
 
-  passport.authenticate(provider.id, { session: false }, async (err: unknown, profile: OAuthProfile | false) => {
-    const failPath = saved.mode === 'link' ? '/settings/security?error=' : '/login?error=';
-    try {
-      if (err || !profile) {
-        if (err) logger.warn({ err, provider: provider.id }, 'OAuth callback failed');
-        return webRedirect(res, `${failPath}oauth_failed`);
-      }
+  try {
+    const tokens = await exchangeCode(provider, code, saved.verifier);
+    const profile = await provider.profile(tokens);
 
-      if (saved.mode === 'link') {
-        if (!req.auth || req.auth.session.pending) return webRedirect(res, '/login');
-        await linkAccount(req.auth.user.id, profile);
-        return webRedirect(res, `${saved.next}${saved.next.includes('?') ? '&' : '?'}linked=${provider.id}`);
-      }
-
-      const user = await findOrCreateUser(profile);
-      await signIn(req, res, user, { method: `oauth:${provider.id}` });
-      // If a challenge (e.g. 2FA) is pending, the web app redirects to it.
-      return webRedirect(res, saved.next);
-    } catch (e) {
-      if (e instanceof OAuthError) return webRedirect(res, `${failPath}${e.code}`);
-      if (e instanceof AppError && e.code === 'ACCOUNT_SUSPENDED') return webRedirect(res, `${failPath}account_suspended`);
-      next(e);
+    if (saved.mode === 'link') {
+      if (!req.auth || req.auth.session.pending) return webRedirect(res, '/login');
+      await linkAccount(req.auth.user.id, profile);
+      return webRedirect(res, `${saved.next}${saved.next.includes('?') ? '&' : '?'}linked=${provider.id}`);
     }
-  })(req, res, next);
+
+    const user = await findOrCreateUser(profile);
+    await signIn(req, res, user, { method: `oauth:${provider.id}` });
+    // If a challenge (e.g. 2FA) is pending, the web app redirects to it.
+    return webRedirect(res, saved.next);
+  } catch (e) {
+    if (e instanceof OAuthError) return webRedirect(res, `${failPath}${e.code}`);
+    if (e instanceof AppError && e.code === 'ACCOUNT_SUSPENDED') return webRedirect(res, `${failPath}account_suspended`);
+    logger.warn({ err: e, provider: provider.id }, 'OAuth callback failed');
+    return webRedirect(res, `${failPath}oauth_failed`);
+  }
 });

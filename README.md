@@ -7,6 +7,11 @@ Production-ready SaaS foundation: **Express 5 API + Next.js 16 web app + Tailwin
 **Core (always on)**
 
 - **Authentication** — email/password with Argon2id, revocable database sessions in httpOnly cookies, "remember me", sliding expiry, CSRF guard, rate limiting, constant-time login.
+- **Brute-force protection** — accounts lock for `LOGIN_LOCKOUT_MINUTES` after `LOGIN_MAX_ATTEMPTS` failures (per account+IP, plus a higher per-account limit), shared across instances. Optional **math captcha** on login, sign-up, password reset and magic-link forms.
+- **10 auth page layouts** — `centered`, `split-left`, `split-right`, `fullscreen`, `card`, `youtube-video`, `animated-birds`, `aurora-waves`, `particle-network`, `tidal`. Pick one with `NEXT_PUBLIC_AUTH_LAYOUT`; in development a floating switcher previews them all. Animations respect reduced-motion and adapt to dark/light theme.
+- **Email verification modes** — `EMAIL_VERIFICATION=off | optional | required` (required blocks the app and the API until verified).
+- **Beautiful emails** — branded HTML templates with preheaders, buttons and one-time-code blocks for verification, reset, OTP, magic links, invitations and a welcome email.
+- **Automatic roles** — addresses in `ADMIN_EMAILS` become admins once their email is verified.
 - **Account management** — profile, password change, email change (confirmed via link to the new address), active sessions with remote sign-out, account deletion, personal security activity log.
 - **Email flows** — verification, password reset, email change, security notifications. Sent through a retrying job queue; printed to the console when SMTP isn't configured.
 - **Admin console** (`/admin`) — sign-up analytics, user directory with search and filters, role changes, manual verification, suspend/unsuspend, revoke sessions, delete, and **impersonation** (with a banner and sensitive actions blocked).
@@ -20,7 +25,11 @@ Production-ready SaaS foundation: **Express 5 API + Next.js 16 web app + Tailwin
 | Module          | What you get                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------ |
 | `two-factor`    | TOTP authenticator-app 2FA with backup codes, enforced on every sign-in method                   |
-| `social-auth`   | Google and GitHub sign-in (Passport) with account linking                                        |
+| `social-auth`   | Google, Facebook, GitHub, X, LinkedIn, Bitbucket, GitLab and Slack (OAuth 2 + PKCE) with account linking |
+| `passkeys`      | Passwordless WebAuthn sign-in (Face ID, Touch ID, Windows Hello, security keys)                  |
+| `email-otp`     | Two-step sign-in with a 6-digit emailed code, resend cooldown and attempt limits                 |
+| `magic-link`    | Passwordless single-use sign-in links by email (optional sign-up)                               |
+| `referrals`     | Personal invitation links for every user with automatic sign-up tracking                         |
 | `billing`       | Stripe subscriptions: pricing page, checkout, customer portal, webhooks, `requirePlan()` gating  |
 | `organizations` | Teams with owner/admin/member roles, email invitations, ownership transfer, `requireOrgRole()`   |
 
@@ -146,8 +155,14 @@ API variables live in `apps/api/.env` (see `.env.example` for comments); module 
 | `RUN_WORKER`               | `true`                  | Process jobs inside the API process                          |
 | `JOB_CONCURRENCY`          | `5`                     | Jobs processed in parallel per worker                        |
 | `AUDIT_LOG_RETENTION_DAYS` | `365`                   |                                                              |
+| `EMAIL_VERIFICATION`       | `optional`              | `off`, `optional` or `required`                              |
+| `LOGIN_MAX_ATTEMPTS`       | `5`                     | Failed sign-ins before a lock; `0` disables lockout           |
+| `LOGIN_LOCKOUT_MINUTES`    | `15`                    |                                                              |
+| `CAPTCHA_ENABLED` / `CAPTCHA_FORMS` | `false` / all       | Math captcha; forms: `login,register,forgot-password,magic-link` |
+| `ADMIN_EMAILS`             | —                       | Comma separated; promoted to admin after verifying           |
+| `SEND_WELCOME_EMAIL`       | `true`                  |                                                              |
 
-Web variables (`apps/web/.env.local`): `API_URL` (internal API URL, **needed at build time** for rewrites), `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_SITE_URL`.
+Web variables (`apps/web/.env.local`): `API_URL` (internal API URL, **needed at build time** for rewrites), `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_AUTH_LAYOUT`, `NEXT_PUBLIC_AUTH_YOUTUBE_ID` (for the `youtube-video` layout) and `NEXT_PUBLIC_AUTH_LAYOUT_SWITCHER`. `NEXT_PUBLIC_*` values are baked in at build time.
 
 ## Deployment
 

@@ -11,11 +11,13 @@ import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { handleFormError } from '@/lib/form';
 import { challengePath } from '@/modules/registry';
+import { useCaptcha } from './captcha';
 import { safeNext } from './login-form';
 
 export function RegisterForm() {
   const router = useRouter();
   const next = safeNext(useSearchParams().get('next'));
+  const captcha = useCaptcha('register');
   const {
     register,
     handleSubmit,
@@ -25,11 +27,12 @@ export function RegisterForm() {
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      const res = await api.post<LoginResponse>('/auth/register', values);
+      const res = await api.post<LoginResponse>('/auth/register', { ...values, captcha: captcha.value });
       router.push('challenge' in res ? challengePath(res.challenge) : next);
       router.refresh();
     } catch (err) {
       handleFormError(err, setError);
+      void captcha.refresh();
     }
   });
 
@@ -45,6 +48,7 @@ export function RegisterForm() {
       <Field id="password" label="Password" error={errors.password?.message} hint="At least 8 characters with upper & lower case letters and a number.">
         <Input id="password" type="password" autoComplete="new-password" aria-invalid={!!errors.password} {...register('password')} />
       </Field>
+      {captcha.field}
       <Button type="submit" className="w-full" loading={isSubmitting}>
         Create account
       </Button>

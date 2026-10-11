@@ -18,6 +18,7 @@ interface Account {
 const errors: Record<string, string> = {
   oauth_account_in_use: 'That account is already connected to a different user.',
   oauth_failed: 'Connecting the account failed. Please try again.',
+  oauth_cancelled: 'Connecting the account was cancelled.',
   oauth_email_missing: 'The provider did not share a verified email address.',
 };
 

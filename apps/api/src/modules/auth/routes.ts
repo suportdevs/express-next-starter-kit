@@ -18,6 +18,9 @@ import {
 } from '@kit/shared';
 import { audit } from '../../core/audit';
 import { signIn } from '../../core/auth-flow';
+import { createCaptcha, requireCaptcha } from '../../core/captcha';
+import { AccountLockedError, assertNotLocked, clearFailedAttempts, recordFailedAttempt } from '../../core/lockout';
+import { env } from '../../config/env';
 import {
   clearImpersonatorCookie,
   clearSessionCookie,
@@ -39,7 +42,12 @@ import * as auth from './service';
 
 export const authRouter = Router();
 
-authRouter.post('/register', authLimiter, validate(registerSchema), async (req, res) => {
+/** A fresh math question for forms protected by the captcha. */
+authRouter.get('/captcha', authLimiter, (_req, res) => {
+  res.set('Cache-Control', 'no-store').json(createCaptcha());
+});
+
+authRouter.post('/register', authLimiter, validate(registerSchema), requireCaptcha('register'), async (req, res) => {
   const input = req.body as RegisterInput;
   const user = await auth.registerUser(input);
   await audit(req, { action: 'auth.register', actorId: user.id });
@@ -47,13 +55,21 @@ authRouter.post('/register', authLimiter, validate(registerSchema), async (req, 
   res.status(201).json(result);
 });
 
-authRouter.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
+authRouter.post('/login', authLimiter, validate(loginSchema), requireCaptcha('login'), async (req, res) => {
   const { email, password, remember } = req.body as LoginInput;
+  await assertNotLocked(email, req.ip);
   const user = await auth.authenticate(email, password);
   if (!user) {
-    await audit(req, { action: 'auth.login_failed', actorId: null, metadata: { email } });
-    throw unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
+    const remaining = await recordFailedAttempt(email, req.ip);
+    await audit(req, { action: 'auth.login_failed', actorId: null, metadata: { email, remaining } });
+    if (remaining === 0) {
+      await audit(req, { action: 'auth.locked_out', actorId: null, metadata: { email } });
+      throw new AccountLockedError(env.LOGIN_LOCKOUT_MINUTES * 60);
+    }
+    const hint = remaining <= 2 ? ` ${remaining} attempt${remaining === 1 ? '' : 's'} left before your account is temporarily locked.` : '';
+    throw unauthorized(`Invalid email or password.${hint}`, 'INVALID_CREDENTIALS');
   }
+  await clearFailedAttempts(email, req.ip);
   res.json(await signIn(req, res, user, { method: 'password', persistent: remember ?? true }));
 });
 
@@ -117,7 +133,7 @@ authRouter.post('/confirm-email-change', authLimiter, validate(confirmEmailChang
   res.json({ ok: true, email: result.to });
 });
 
-authRouter.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), async (req, res) => {
+authRouter.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), requireCaptcha('forgot-password'), async (req, res) => {
   const { email } = req.body as ForgotPasswordInput;
   await auth.requestPasswordReset(email);
   res.json({ ok: true });

@@ -57,3 +57,37 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* ─── Auth layout animations ───────────────────────────── */
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate3d(8%, -6%, 0) scale(1.15) rotate(20deg);
+  }
+  66% {
+    transform: translate3d(-6%, 8%, 0) scale(0.9) rotate(-15deg);
+  }
+}
+
+@keyframes tide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-aurora {
+  animation: aurora-drift 18s ease-in-out infinite;
+}
+.animate-tide {
+  animation: tide linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-aurora,
+  .animate-tide {
+    animation: none;
+  }
+}

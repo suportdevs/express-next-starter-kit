@@ -2,7 +2,9 @@ import { eq } from 'drizzle-orm';
 import type { RegisterInput } from '@kit/shared';
 import { db } from '../../db/client';
 import { users, type User } from '../../db/schema';
+import { onAccountActivated } from '../../core/accounts';
 import { hooks } from '../../core/hooks';
+import { env } from '../../config/env';
 import { consumeToken, consumeTokenData, issueToken } from '../../core/tokens';
 import { deleteUserSessions } from '../../core/session';
 import { badRequest, conflict } from '../../lib/errors';
@@ -29,7 +31,7 @@ export async function registerUser(input: RegisterInput): Promise<User> {
     .values({ name: input.name, email: input.email, passwordHash: await hashPassword(input.password) })
     .returning();
   await hooks.emit(hooks.userCreated, user!);
-  await sendEmailVerification(user!);
+  if (env.EMAIL_VERIFICATION !== 'off') await sendEmailVerification(user!);
   return user!;
 }
 
@@ -52,7 +54,8 @@ export async function sendEmailVerification(user: User) {
 export async function verifyEmail(token: string): Promise<boolean> {
   const userId = await consumeToken(token, 'email_verification');
   if (!userId) return false;
-  await db.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, userId));
+  const [user] = await db.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, userId)).returning();
+  if (user) await onAccountActivated(user);
   return true;
 }
 

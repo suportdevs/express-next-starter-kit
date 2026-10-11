@@ -12,9 +12,11 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { handleFormError } from '@/lib/form';
+import { useCaptcha } from '@/components/auth/captcha';
 
 export default function ForgotPasswordPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const captcha = useCaptcha('forgot-password');
   const {
     register,
     handleSubmit,
@@ -24,10 +26,11 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      await api.post('/auth/forgot-password', values);
+      await api.post('/auth/forgot-password', { ...values, captcha: captcha.value });
       setSentTo(values.email);
     } catch (err) {
       handleFormError(err, setError);
+      void captcha.refresh();
     }
   });
 
@@ -51,6 +54,7 @@ export default function ForgotPasswordPage() {
           <Field id="email" label="Email" error={errors.email?.message}>
             <Input id="email" type="email" autoComplete="email" aria-invalid={!!errors.email} {...register('email')} />
           </Field>
+          {captcha.field}
           <Button type="submit" className="w-full" loading={isSubmitting}>
             Send reset link
           </Button>

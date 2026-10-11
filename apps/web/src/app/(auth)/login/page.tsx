@@ -11,6 +11,9 @@ export const metadata: Metadata = { title: 'Sign in' };
 
 const errorMessages: Record<string, string> = {
   oauth_failed: 'Social sign-in failed. Please try again.',
+  oauth_cancelled: 'Social sign-in was cancelled.',
+  oauth_account_in_use: 'That social account is already connected to a different user.',
+  magic_link_invalid: 'That sign-in link is invalid or has expired. Request a new one.',
   oauth_email_missing: 'Your social account did not share a verified email address.',
   session_expired: 'Your session expired. Please sign in again.',
   account_suspended: 'This account has been suspended. Contact support if you think this is a mistake.',

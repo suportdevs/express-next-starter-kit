@@ -8,8 +8,9 @@ export function sendVerificationEmail(to: string, name: string, token: string) {
     subject: `Verify your email for ${env.APP_NAME}`,
     ...renderEmail({
       heading: 'Confirm your email address',
-      body: [`Hi ${name},`, 'Thanks for signing up! Please confirm your email address to activate your account.', 'This link expires in 24 hours.'],
+      body: [`Hi ${name},`, `Thanks for signing up for ${env.APP_NAME}! Confirm your email address so we know it's really you.`],
       action: { label: 'Verify email', url },
+      note: "This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.",
     }),
   });
 }
@@ -21,12 +22,9 @@ export function sendPasswordResetEmail(to: string, name: string, token: string) 
     subject: `Reset your ${env.APP_NAME} password`,
     ...renderEmail({
       heading: 'Reset your password',
-      body: [
-        `Hi ${name},`,
-        'We received a request to reset your password. This link expires in 1 hour.',
-        "If you didn't request this, you can safely ignore this email.",
-      ],
+      body: [`Hi ${name},`, 'We received a request to reset the password for your account. Choose a new one below.'],
       action: { label: 'Reset password', url },
+      note: "This link expires in 1 hour and can be used once. If you didn't request a reset, ignore this email — your password won't change.",
     }),
   });
 }
@@ -90,6 +88,25 @@ export function sendAccountSuspendedEmail(to: string, name: string, reason?: str
         ...(reason ? [`Reason: ${reason}`] : []),
         'Reply to this email if you think this is a mistake.',
       ],
+    }),
+  });
+}
+
+export function sendWelcomeEmail(to: string, name: string) {
+  return sendMail({
+    to,
+    subject: `Welcome to ${env.APP_NAME} 🎉`,
+    ...renderEmail({
+      heading: `Welcome aboard, ${name.split(' ')[0]}!`,
+      preheader: `Your ${env.APP_NAME} account is ready.`,
+      body: [
+        `Your ${env.APP_NAME} account is all set. Here are a few things you can do next:`,
+        '• Complete your profile in Settings',
+        '• Turn on two-step verification to protect your account',
+        '• Invite your teammates',
+      ],
+      action: { label: 'Open your dashboard', url: `${env.WEB_URL}/dashboard` },
+      note: 'Questions? Just reply to this email — we read every message.',
     }),
   });
 }

@@ -4,11 +4,14 @@ import { SidebarNav } from '@/components/app/sidebar-nav';
 import { UserMenu } from '@/components/app/user-menu';
 import { VerifyEmailBanner } from '@/components/app/verify-email-banner';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { getSession, requireUser } from '@/lib/session';
+import { VerifyEmailRequired } from '@/components/app/verify-email-required';
+import { getFeatures, getSession, requireUser } from '@/lib/session';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const { impersonator } = await getSession();
+  const [{ impersonator }, features] = await Promise.all([getSession(), getFeatures()]);
+  const verification = features?.auth?.emailVerification ?? 'optional';
+  if (!user.emailVerified && verification === 'required') return <VerifyEmailRequired email={user.email} />;
   return (
     <div className="min-h-screen md:grid md:grid-cols-[240px_1fr]">
       <aside className="hidden bg-card px-4 py-4 md:sticky md:top-0 md:block md:h-screen md:border-r">
@@ -27,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="overflow-x-auto border-b bg-card px-4 py-2 md:hidden">
           <SidebarNav isAdmin={user.role === 'admin'} />
         </div>
-        {!user.emailVerified && <VerifyEmailBanner email={user.email} />}
+        {!user.emailVerified && verification !== 'off' && <VerifyEmailBanner email={user.email} />}
         <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</main>
       </div>
     </div>
