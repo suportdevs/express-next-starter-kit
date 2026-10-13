@@ -15,6 +15,20 @@
       "when": 1791633599614,
       "tag": "0001_admin_audit_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791790212313,
+      "tag": "0002_add_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791892647733,
+      "tag": "0003_remove_billing",
+      "breakpoints": true
     }
   ]
 }
